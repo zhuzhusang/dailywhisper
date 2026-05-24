@@ -23,8 +23,10 @@ export default function App() {
   // Collected / Favorite torn list state
   const [favorites, setFavorites] = useState<TornPaper[]>([]);
   
-  // Custom manual session quote (Overrides deterministic daily quote if clicked "print another")
-  const [manualQuote, setManualQuote] = useState<Quote | null>(null);
+  // Printed history state (tracks printed quote IDs so they are not repeated)
+  const [printedQuoteIds, setPrintedQuoteIds] = useState<string[]>([]);
+  // Current quote loaded in the typewriter
+  const [currentQuoteId, setCurrentQuoteId] = useState<string | null>(null);
 
   // Layout drawers toggles
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -34,19 +36,24 @@ export default function App() {
   // Helpful Help Drawer
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
-  // Initialize Quotes and Favorites from localStorage
+  // Initialize Quotes, Favorites, Printed History, and Current Quote from localStorage
   useEffect(() => {
     // 1. Initialise Quotes list
     const storedQuotes = localStorage.getItem("whisper_quotes_v1");
+    let activeList: Quote[] = [];
     if (storedQuotes) {
       try {
-        setQuotes(JSON.parse(storedQuotes));
+        const parsed = JSON.parse(storedQuotes);
+        setQuotes(parsed);
+        activeList = parsed.filter((q: Quote) => q.enabled);
       } catch (e) {
         setQuotes(defaultQuotes);
+        activeList = defaultQuotes.filter((q) => q.enabled);
       }
     } else {
       localStorage.setItem("whisper_quotes_v1", JSON.stringify(defaultQuotes));
       setQuotes(defaultQuotes);
+      activeList = defaultQuotes.filter((q) => q.enabled);
     }
 
     // 2. Initialise Favorites (Collected)
@@ -58,12 +65,63 @@ export default function App() {
         setFavorites([]);
       }
     }
+
+    // 3. Initialise Printed History
+    const storedPrinted = localStorage.getItem("whisper_printed_ids_v1");
+    let printedIds: string[] = [];
+    if (storedPrinted) {
+      try {
+        printedIds = JSON.parse(storedPrinted);
+        setPrintedQuoteIds(printedIds);
+      } catch (e) {
+        setPrintedQuoteIds([]);
+      }
+    }
+
+    // 4. Initialise Current Quote ID
+    const storedCurrentId = localStorage.getItem("whisper_current_quote_id_v1");
+    if (storedCurrentId && activeList.some((q) => q.id === storedCurrentId)) {
+      setCurrentQuoteId(storedCurrentId);
+    } else if (activeList.length > 0) {
+      // Pick a random unprinted quote to start
+      const pool = activeList.filter((q) => !printedIds.includes(q.id));
+      const startingPool = pool.length > 0 ? pool : activeList;
+      const randomIdx = Math.floor(Math.random() * startingPool.length);
+      const chosen = startingPool[randomIdx];
+      if (chosen) {
+        setCurrentQuoteId(chosen.id);
+        localStorage.setItem("whisper_current_quote_id_v1", chosen.id);
+      }
+    }
   }, []);
 
   // Update quotes to storage
   const saveQuotesToStore = (updated: Quote[]) => {
     setQuotes(updated);
     localStorage.setItem("whisper_quotes_v1", JSON.stringify(updated));
+  };
+
+  // Helper to ensure currentQuoteId remains valid when database changes
+  const ensureValidCurrentQuote = (updatedQuotes: Quote[]) => {
+    const activeList = updatedQuotes.filter((q) => q.enabled);
+    if (activeList.length === 0) {
+      setCurrentQuoteId(null);
+      localStorage.removeItem("whisper_current_quote_id_v1");
+      return;
+    }
+    // If current quote is still active and valid, keep it
+    if (currentQuoteId && activeList.some((q) => q.id === currentQuoteId)) {
+      return;
+    }
+    // Pick another one
+    const pool = activeList.filter((q) => !printedQuoteIds.includes(q.id));
+    const startingPool = pool.length > 0 ? pool : activeList;
+    const randomIdx = Math.floor(Math.random() * startingPool.length);
+    const chosen = startingPool[randomIdx];
+    if (chosen) {
+      setCurrentQuoteId(chosen.id);
+      localStorage.setItem("whisper_current_quote_id_v1", chosen.id);
+    }
   };
 
   // Add a new quote (Config backstage helper)
@@ -75,12 +133,14 @@ export default function App() {
     };
     const updated = [...quotes, fresh];
     saveQuotesToStore(updated);
+    ensureValidCurrentQuote(updated);
   };
 
   // Delete quote
   const handleDeleteQuote = (id: string) => {
     const updated = quotes.filter((q) => q.id !== id);
     saveQuotesToStore(updated);
+    ensureValidCurrentQuote(updated);
   };
 
   // Toggle enable/disable quote
@@ -92,6 +152,7 @@ export default function App() {
       return q;
     });
     saveQuotesToStore(updated);
+    ensureValidCurrentQuote(updated);
   };
 
   // Edit quote
@@ -103,19 +164,54 @@ export default function App() {
       return q;
     });
     saveQuotesToStore(updated);
+    ensureValidCurrentQuote(updated);
   };
 
   // Restore Default curated system quotes
   const handleRestoreDefaults = () => {
     saveQuotesToStore(defaultQuotes);
-    setManualQuote(null); // resets session override as well
+    ensureValidCurrentQuote(defaultQuotes);
   };
 
-  // Save torn receipt into collection folder
+  const activeQuotes = quotes.filter((q) => q.enabled);
+  const displayedQuote = activeQuotes.find((q) => q.id === currentQuoteId) || activeQuotes[0] || null;
+
+  // Save torn receipt into collection folder and automatically pre-load the next unprinted quote
   const handleSaveTear = (torn: TornPaper) => {
-    const updated = [torn, ...favorites];
-    setFavorites(updated);
-    localStorage.setItem("whisper_favs_v1", JSON.stringify(updated));
+    const updatedFavs = [torn, ...favorites];
+    setFavorites(updatedFavs);
+    localStorage.setItem("whisper_favs_v1", JSON.stringify(updatedFavs));
+    
+    // Add to printed history
+    const quoteId = torn.quoteId;
+    let nextPrintedIds = [...printedQuoteIds];
+    if (!nextPrintedIds.includes(quoteId)) {
+      nextPrintedIds.push(quoteId);
+      setPrintedQuoteIds(nextPrintedIds);
+      localStorage.setItem("whisper_printed_ids_v1", JSON.stringify(nextPrintedIds));
+    }
+
+    // Pick a new current quote ID for the next print!
+    const pool = activeQuotes.filter((q) => !nextPrintedIds.includes(q.id) && q.id !== quoteId);
+    let nextQuote: Quote | null = null;
+    if (pool.length > 0) {
+      const idx = Math.floor(Math.random() * pool.length);
+      nextQuote = pool[idx];
+    } else {
+      // All quotes printed! Reset history but keep this one out of immediate next choice if possible
+      const resetPool = activeQuotes.filter((q) => q.id !== quoteId);
+      const startingPool = resetPool.length > 0 ? resetPool : activeQuotes;
+      const idx = Math.floor(Math.random() * startingPool.length);
+      nextQuote = startingPool[idx];
+      
+      setPrintedQuoteIds([]);
+      localStorage.setItem("whisper_printed_ids_v1", JSON.stringify([]));
+    }
+
+    if (nextQuote) {
+      setCurrentQuoteId(nextQuote.id);
+      localStorage.setItem("whisper_current_quote_id_v1", nextQuote.id);
+    }
     
     // Auto launch share zoomed board for review once they tear!
     setActiveSharePaper(torn);
@@ -133,46 +229,38 @@ export default function App() {
 
   // Toggle / pin bookmark directly on the Card details
   const handleToggleCardFavorite = (id: string) => {
-    // If it is inside favorites, remove it. If not, don't remove, it was already added when torn
     const exists = favorites.some((f) => f.id === id);
     if (exists) {
       handleDeleteFavorite(id);
     } else {
-      // Just double safety add-back (though it inherently was added during tear)
       if (activeSharePaper) {
         handleSaveTear(activeSharePaper);
       }
     }
   };
 
-  // DETERMINISTIC SELECTION FORMULA FOR THE DAILY QUOTE
-  // Maps today's simulated dateStr (e.g. "2026-05-23") to an enabled quote offset index
-  const activeQuotes = quotes.filter((q) => q.enabled);
-  
-  const getTodayQuote = (): Quote | null => {
-    if (activeQuotes.length === 0) return null;
-    
-    // Hash simulated date string to a stable integer
-    let hash = 0;
-    for (let i = 0; i < simulatedDate.length; i++) {
-      hash = simulatedDate.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const idx = Math.abs(hash) % activeQuotes.length;
-    return activeQuotes[idx];
-  };
-
-  // Current selected quote. If user requested "another random", we use their manual session override state
-  const displayedQuote = manualQuote && manualQuote.enabled ? manualQuote : getTodayQuote();
-
-  // Print another random quote trigger - excludes the current daily quote from chosen deck to ensure variety!
+  // Print another random quote trigger - excludes the current displayed quote to ensure variety!
   const handlePrintAnotherRandom = () => {
-    const dailyQuote = getTodayQuote();
-    const subDeck = activeQuotes.filter((q) => q.id !== dailyQuote?.id);
+    if (activeQuotes.length === 0) return;
     
-    const deckToChoose = subDeck.length > 0 ? subDeck : activeQuotes;
-    if (deckToChoose.length > 0) {
-      const idx = Math.floor(Math.random() * deckToChoose.length);
-      setManualQuote(deckToChoose[idx]);
+    // Find unprinted pool
+    let pool = activeQuotes.filter((q) => !printedQuoteIds.includes(q.id) && q.id !== displayedQuote?.id);
+    
+    // If pool is empty, let's relax the printed constraint, but still exclude the current one
+    if (pool.length === 0) {
+      pool = activeQuotes.filter((q) => q.id !== displayedQuote?.id);
+    }
+    
+    // If still empty (only 1 active quote), just use activeQuotes
+    if (pool.length === 0) {
+      pool = activeQuotes;
+    }
+
+    const randomIdx = Math.floor(Math.random() * pool.length);
+    const chosen = pool[randomIdx];
+    if (chosen) {
+      setCurrentQuoteId(chosen.id);
+      localStorage.setItem("whisper_current_quote_id_v1", chosen.id);
     }
   };
 
@@ -232,7 +320,6 @@ export default function App() {
               value={simulatedDate}
               onChange={(e) => {
                 setSimulatedDate(e.target.value);
-                setManualQuote(null);
               }}
               className="font-mono text-[10px] text-[#099c98] font-semibold bg-transparent border-none outline-none cursor-pointer w-20 text-center"
               title="模拟今日日期"
@@ -280,7 +367,7 @@ export default function App() {
             onTear={handleSaveTear}
             simulatedDateStr={simulatedDate}
             onPrintAnotherRandom={handlePrintAnotherRandom}
-            isCustomQuote={manualQuote !== null && manualQuote.id === displayedQuote?.id}
+            isCustomQuote={false}
             totalActiveCount={activeQuotes.length}
           />
         ) : (
@@ -383,7 +470,6 @@ export default function App() {
         simulatedDate={simulatedDate}
         onSimulatedDateChange={(d) => {
           setSimulatedDate(d);
-          setManualQuote(null); // Clear manual override when changing dates
         }}
       />
 

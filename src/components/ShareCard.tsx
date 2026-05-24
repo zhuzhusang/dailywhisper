@@ -22,7 +22,11 @@ export default function ShareCard({
 
   const handleCopyText = async () => {
     try {
-      const shareText = `「${paper.content}」 —— ${paper.author}${paper.source ? ` 来自${paper.source}` : ""}\n\n (摘自《每日一语》印票 No.${String(paper.index).padStart(3, "0")})`;
+      let authorPart = "";
+      if (paper.author || paper.source) {
+        authorPart = ` —— ${paper.author ?? ""}${paper.source ? `《${paper.source}》` : ""}`;
+      }
+      const shareText = `「${paper.content}」${authorPart}\n\n(摘自《每日一语》印票 No.${String(paper.index).padStart(3, "0")})`;
       await navigator.clipboard.writeText(shareText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -86,16 +90,18 @@ export default function ShareCard({
             </p>
 
             {/* Author Attribution */}
-            <div className="mt-6 flex justify-center items-center gap-1.5 text-xs text-stone-500 font-serif">
-              <span className="w-4 h-[1px] bg-[#d3bc9b]" />
-              <span className="font-semibold text-[#8c6d4f]">{paper.author}</span>
-              {paper.source && (
-                <span className="text-stone-400 italic font-normal">
-                  《{paper.source.replace(/[《》]/g, "")}》
-                </span>
-              )}
-              <span className="w-4 h-[1px] bg-[#d3bc9b]" />
-            </div>
+            {(paper.author || paper.source) && (
+              <div className="mt-6 flex justify-center items-center gap-1.5 text-xs text-stone-500 font-serif">
+                <span className="w-4 h-[1px] bg-[#d3bc9b]" />
+                {paper.author && <span className="font-semibold text-[#8c6d4f]">{paper.author}</span>}
+                {paper.source && (
+                  <span className="text-stone-400 italic font-normal">
+                    《{paper.source.replace(/[《》]/g, "")}》
+                  </span>
+                )}
+                <span className="w-4 h-[1px] bg-[#d3bc9b]" />
+              </div>
+            )}
 
             {/* Printed Timestamp metadata */}
             <div className="mt-10 border-t border-dashed border-[#ebd9c4] pt-4 flex flex-col justify-center items-center text-[10px] font-mono text-neutral-400">

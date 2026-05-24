@@ -23,7 +23,7 @@ export default function Collections({
   const filtered = favorites.filter(
     (f) =>
       f.content.toLowerCase().includes(search.toLowerCase()) ||
-      f.author.toLowerCase().includes(search.toLowerCase()) ||
+      (f.author ?? "").toLowerCase().includes(search.toLowerCase()) ||
       (f.source ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
@@ -126,7 +126,9 @@ export default function Collections({
                         <div className="flex items-center gap-1.5 text-stone-500">
                           <Calendar size={11} className="text-[#099c98]" />
                           <span className="text-[10px] font-mono">{paper.dateStr}</span>
-                          <span className="text-[10px] font-semibold text-[#08837f]">· {paper.author}</span>
+                          {paper.author && (
+                            <span className="text-[10px] font-semibold text-[#08837f]">· {paper.author}</span>
+                          )}
                         </div>
 
                         {/* Action buttons on hover/scroll */}

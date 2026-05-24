@@ -32,45 +32,34 @@ export default function AdminDrawer({
 }: AdminDrawerProps) {
   const [activeTab, setActiveTab] = useState<"list" | "add">("list");
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   
   // Form elements for adding quotes
   const [content, setContent] = useState("");
   const [author, setAuthor] = useState("");
   const [source, setSource] = useState("");
-  const [category, setCategory] = useState("日常");
 
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [editAuthor, setEditAuthor] = useState("");
   const [editSource, setEditSource] = useState("");
-  const [editCategory, setEditCategory] = useState("");
-
-  const categories = Array.from(new Set(quotes.map((q) => q.category ?? "其他"))).filter(Boolean);
 
   const filteredQuotes = quotes.filter((q) => {
-    const matchesSearch =
+    return (
       q.content.toLowerCase().includes(search.toLowerCase()) ||
-      q.author.toLowerCase().includes(search.toLowerCase()) ||
-      (q.source ?? "").toLowerCase().includes(search.toLowerCase());
-    
-    const matchesCat = 
-      categoryFilter === "all" || 
-      (q.category ?? "其他") === categoryFilter;
-
-    return matchesSearch && matchesCat;
+      (q.author ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      (q.source ?? "").toLowerCase().includes(search.toLowerCase())
+    );
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!content.trim() || !author.trim()) return;
+    if (!content.trim()) return;
 
     onAddQuote({
       content: content.trim(),
-      author: author.trim(),
+      author: author.trim() ? author.trim() : undefined,
       source: source.trim() ? source.trim() : undefined,
-      category: category.trim() ? category.trim() : "自定义",
       enabled: true,
     });
 
@@ -78,16 +67,14 @@ export default function AdminDrawer({
     setContent("");
     setAuthor("");
     setSource("");
-    setCategory("日常");
     setActiveTab("list");
   };
 
   const startEditing = (q: Quote) => {
     setEditingId(q.id);
     setEditContent(q.content);
-    setEditAuthor(q.author);
+    setEditAuthor(q.author ?? "");
     setEditSource(q.source ?? "");
-    setEditCategory(q.category ?? "日常");
   };
 
   const cancelEditing = () => {
@@ -95,12 +82,11 @@ export default function AdminDrawer({
   };
 
   const saveEdit = (id: string) => {
-    if (!editContent.trim() || !editAuthor.trim()) return;
+    if (!editContent.trim()) return;
     onEditQuote(id, {
       content: editContent.trim(),
-      author: editAuthor.trim(),
+      author: editAuthor.trim() ? editAuthor.trim() : undefined,
       source: editSource.trim() ? editSource.trim() : undefined,
-      category: editCategory.trim() ? editCategory.trim() : undefined,
     });
     setEditingId(null);
   };
@@ -210,19 +196,6 @@ export default function AdminDrawer({
                         className="w-full pl-9 pr-4 py-2 border border-[#8c6d4f]/20 rounded-lg text-sm bg-stone-50 focus:outline-none focus:border-[#8c6d4f]"
                       />
                     </div>
-                    <select
-                      id="admin-cat-filter"
-                      value={categoryFilter}
-                      onChange={(e) => setCategoryFilter(e.target.value)}
-                      className="px-3 py-2 border border-[#8c6d4f]/20 rounded-lg text-sm bg-stone-50 focus:outline-none text-neutral-700"
-                    >
-                      <option value="all">全部类型</option>
-                      {categories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
                   </div>
 
                   {/* List */}
@@ -257,13 +230,14 @@ export default function AdminDrawer({
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
                                     <label className="block text-[11px] uppercase tracking-wider font-mono text-[#5c4033]/60 mb-1">
-                                      作者
+                                      作者 (选填)
                                     </label>
                                     <input
                                       type="text"
                                       value={editAuthor}
                                       onChange={(e) => setEditAuthor(e.target.value)}
                                       className="w-full p-2 border border-[#8c6d4f]/30 rounded bg-stone-50 text-sm font-serif"
+                                      placeholder="选填"
                                     />
                                   </div>
                                   <div>
@@ -278,17 +252,6 @@ export default function AdminDrawer({
                                       placeholder="选填"
                                     />
                                   </div>
-                                </div>
-                                <div>
-                                  <label className="block text-[11px] uppercase tracking-wider font-mono text-[#5c4033]/60 mb-1">
-                                    分类标签
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={editCategory}
-                                    onChange={(e) => setEditCategory(e.target.value)}
-                                    className="w-full p-2 border border-[#8c6d4f]/30 rounded bg-stone-50 text-sm font-serif"
-                                  />
                                 </div>
                                 <div className="flex justify-end gap-2 pt-1">
                                   <button
@@ -313,15 +276,12 @@ export default function AdminDrawer({
                                     “ {q.content} ”
                                   </p>
                                   <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500 font-serif">
-                                    <span className="font-semibold text-[#8c6d4f]">{q.author}</span>
+                                    {q.author && <span className="font-semibold text-[#8c6d4f]">{q.author}</span>}
                                     {q.source && (
                                       <span className="text-stone-400">
                                         来自 {q.source}
                                       </span>
                                     )}
-                                    <span className="bg-stone-100 px-1.5 py-0.5 rounded text-[10px] text-stone-500 border border-stone-200">
-                                      {q.category ?? "其他"}
-                                    </span>
                                   </div>
                                 </div>
 
@@ -400,59 +360,29 @@ export default function AdminDrawer({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="block text-xs uppercase tracking-wider font-mono text-[#5c4033]/70 font-semibold">
-                        作者 / 演绎者 *
+                        作者 / 演绎者 (选填)
                       </label>
                       <input
                         id="add-quote-author"
                         type="text"
                         value={author}
                         onChange={(e) => setAuthor(e.target.value)}
-                        placeholder="如：三毛、王小波、林语堂"
-                        required
+                        placeholder="如：三毛、网络、留空"
                         className="w-full p-3 border border-[#8c6d4f]/30 rounded-xl bg-white text-sm font-serif focus:outline-none focus:border-[#8c6d4f]"
                       />
                     </div>
 
                     <div className="space-y-1">
                       <label className="block text-xs uppercase tracking-wider font-mono text-[#5c4033]/70 font-semibold">
-                        出处来源
+                        出处来源 (选填)
                       </label>
                       <input
                         id="add-quote-source"
                         type="text"
                         value={source}
                         onChange={(e) => setSource(e.target.value)}
-                        placeholder="如：书名《撒哈拉的故事》、选自微博"
+                        placeholder="如：书名《撒哈拉的故事》、网络"
                         className="w-full p-3 border border-[#8c6d4f]/30 rounded-xl bg-white text-sm font-serif focus:outline-none focus:border-[#8c6d4f]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-xs uppercase tracking-wider font-mono text-[#5c4033]/70 font-semibold">
-                      选择类型分类
-                    </label>
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {["日常", "治愈", "孤独", "诗意", "自由", "深情", "温柔", "勇气"].map((catOption) => (
-                        <button
-                          key={catOption}
-                          type="button"
-                          onClick={() => setCategory(catOption)}
-                          className={`px-3 py-1.5 rounded-full font-serif text-xs border transition ${
-                            category === catOption
-                              ? "bg-[#8c6d4f] border-[#8c6d4f] text-white"
-                              : "bg-white border-stone-200 text-stone-600 hover:border-[#8c6d4f]/30"
-                          }`}
-                        >
-                          {catOption}
-                        </button>
-                      ))}
-                      <input
-                        type="text"
-                        value={["日常", "治愈", "孤独", "诗意", "自由", "深情", "温柔", "勇气"].includes(category) ? "" : category}
-                        onChange={(e) => setCategory(e.target.value || "自定义")}
-                        placeholder="自定义分类..."
-                        className="px-3 py-1 border border-stone-200 rounded-full text-xs font-serif focus:outline-none focus:border-[#8c6d4f] w-28 bg-white"
                       />
                     </div>
                   </div>

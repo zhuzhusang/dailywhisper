@@ -285,10 +285,12 @@ export default function Printer({
                     </div>
 
                     {/* Author Attribution */}
-                    <p className="text-[11px] font-serif text-[#08837f] font-bold tracking-wider shrink-0">
-                      —— {currentQuote.author}
-                      {currentQuote.source ? `《${currentQuote.source.replace(/[《》]/g, "")}》` : ""}
-                    </p>
+                    {(currentQuote.author || currentQuote.source) && (
+                      <p className="text-[11px] font-serif text-[#08837f] font-bold tracking-wider shrink-0">
+                        {currentQuote.author ? `—— ${currentQuote.author} ` : ""}
+                        {currentQuote.source ? `《${currentQuote.source.replace(/[《》]/g, "")}》` : ""}
+                      </p>
+                    )}
 
                     {/* Print time & dates */}
                     <p className="text-[8px] font-mono text-stone-400 mt-6 tracking-widest uppercase shrink-0">
