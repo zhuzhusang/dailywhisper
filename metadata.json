@@ -1,0 +1,6 @@
+{
+  "name": "每日一语",
+  "description": "便携的复古打字机每日一语。点击打印，享受带有机械声音与真实振动反馈的复古收据纸条，为您奉上今日份的心灵寄托与文艺金句，并附带后台管理与收藏记事簿。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
