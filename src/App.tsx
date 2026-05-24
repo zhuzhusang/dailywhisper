@@ -44,8 +44,16 @@ export default function App() {
     if (storedQuotes) {
       try {
         const parsed = JSON.parse(storedQuotes);
-        setQuotes(parsed);
-        activeList = parsed.filter((q: Quote) => q.enabled);
+        // Automatic Migration: If the user has fewer than 100 quotes (the old default set),
+        // automatically upgrade them to the brand new 300+ quotes set immediately!
+        if (Array.isArray(parsed) && parsed.length < 100) {
+          setQuotes(defaultQuotes);
+          localStorage.setItem("whisper_quotes_v1", JSON.stringify(defaultQuotes));
+          activeList = defaultQuotes.filter((q) => q.enabled);
+        } else {
+          setQuotes(parsed);
+          activeList = parsed.filter((q: Quote) => q.enabled);
+        }
       } catch (e) {
         setQuotes(defaultQuotes);
         activeList = defaultQuotes.filter((q) => q.enabled);
